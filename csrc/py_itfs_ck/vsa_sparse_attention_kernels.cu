@@ -12,11 +12,19 @@ namespace {
 
 constexpr int64_t kBlockSize = 128;
 
-void check_bhsd_tensor(const aiter_tensor_t& tensor, const char* name)
+void check_tensor(const aiter_tensor_t& tensor, const char* name, bool is_bshd)
 {
     AITER_CHECK(tensor.is_gpu(), name, " must be on a GPU");
-    AITER_CHECK(tensor.is_contiguous(), name, " must be contiguous BHSD");
-    AITER_CHECK(tensor.dim() == 4, name, " must have shape [B, H, S, D]");
+    AITER_CHECK(tensor.dim() == 4,
+                name,
+                is_bshd ? " must have shape [B, S, H, D]" :
+                          " must have shape [B, H, S, D]");
+    if(is_bshd)
+        AITER_CHECK(tensor.stride(3) == 1,
+                    name,
+                    " must have a contiguous last dimension");
+    else
+        AITER_CHECK(tensor.is_contiguous(), name, " must be contiguous BHSD");
     AITER_CHECK(
         tensor.dtype() == AITER_DTYPE_fp16 || tensor.dtype() == AITER_DTYPE_bf16,
         name,
@@ -40,12 +48,17 @@ void vsa_sparse_attention_fwd(aiter_tensor_t& q,
                               aiter_tensor_t& v,
                               aiter_tensor_t& block_lut,
                               aiter_tensor_t& block_counts,
+                              aiter_tensor_t& kv_block_sizes,
+                              bool is_bshd,
                               aiter_tensor_t& out)
 {
-    check_bhsd_tensor(q, "q");
-    check_bhsd_tensor(k, "k");
-    check_bhsd_tensor(v, "v");
-    check_bhsd_tensor(out, "out");
+    check_tensor(q, "q", is_bshd);
+    check_tensor(k, "k", is_bshd);
+    check_tensor(v, "v", is_bshd);
+    check_tensor(out, "out", is_bshd);
+
+    const int head_axis     = is_bshd ? 2 : 1;
+    const int sequence_axis = is_bshd ? 1 : 2;
 
     AITER_CHECK(q.device_id == k.device_id && q.device_id == v.device_id &&
                     q.device_id == out.device_id,
@@ -53,17 +66,17 @@ void vsa_sparse_attention_fwd(aiter_tensor_t& q,
     AITER_CHECK(q.dtype() == k.dtype() && q.dtype() == v.dtype() &&
                     q.dtype() == out.dtype(),
                 "q, k, v, and out must have the same dtype");
-    AITER_CHECK(q.size(0) > 0 && q.size(1) > 0 && k.size(1) > 0,
+    AITER_CHECK(q.size(0) > 0 && q.size(head_axis) > 0 && k.size(head_axis) > 0,
                 "batch size and head counts must be positive");
     AITER_CHECK(q.size(0) == k.size(0) && q.size(0) == v.size(0),
                 "q, k, and v must have the same batch size");
     AITER_CHECK(same_shape(k, v), "k and v must have the same shape");
     AITER_CHECK(same_shape(q, out), "out must have the same shape as q");
-    AITER_CHECK(q.size(1) % k.size(1) == 0,
+    AITER_CHECK(q.size(head_axis) % k.size(head_axis) == 0,
                 "the number of query heads must be divisible by the number of KV heads");
     AITER_CHECK(q.size(3) == 128 && k.size(3) == 128,
                 "VSA sparse attention currently supports head dimension 128 only");
-    AITER_CHECK(q.size(2) > 0 && k.size(2) > kBlockSize,
+    AITER_CHECK(q.size(sequence_axis) > 0 && k.size(sequence_axis) > kBlockSize,
                 "query length must be positive and key length must exceed 128");
 
     AITER_CHECK(block_lut.is_gpu() && block_counts.is_gpu(),
@@ -78,10 +91,10 @@ void vsa_sparse_attention_fwd(aiter_tensor_t& q,
                 "block_lut and block_counts must be contiguous");
 
     const int64_t batch     = q.size(0);
-    const int64_t nhead_q   = q.size(1);
-    const int64_t nhead_k   = k.size(1);
-    const int64_t seqlen_q  = q.size(2);
-    const int64_t seqlen_k  = k.size(2);
+    const int64_t nhead_q   = q.size(head_axis);
+    const int64_t nhead_k   = k.size(head_axis);
+    const int64_t seqlen_q  = q.size(sequence_axis);
+    const int64_t seqlen_k  = k.size(sequence_axis);
     const int64_t q_blocks  = (seqlen_q + kBlockSize - 1) / kBlockSize;
     const int64_t kv_blocks = (seqlen_k + kBlockSize - 1) / kBlockSize;
 
@@ -94,6 +107,17 @@ void vsa_sparse_attention_fwd(aiter_tensor_t& q,
         block_counts.dim() == 3 && block_counts.size(0) == batch &&
             block_counts.size(1) == nhead_q && block_counts.size(2) == q_blocks,
         "block_counts must have shape [B, Hq, ceil(Sq/128)]");
+
+    if(kv_block_sizes.numel() > 0)
+    {
+        AITER_CHECK(kv_block_sizes.is_gpu() && kv_block_sizes.device_id == q.device_id,
+                    "kv_block_sizes must be on the same GPU as q");
+        AITER_CHECK(kv_block_sizes.dtype() == AITER_DTYPE_i32,
+                    "kv_block_sizes must have dtype int32");
+        AITER_CHECK(kv_block_sizes.is_contiguous(), "kv_block_sizes must be contiguous");
+        AITER_CHECK(kv_block_sizes.dim() == 1 && kv_block_sizes.size(0) == kv_blocks,
+                    "kv_block_sizes must have shape [ceil(Sk/128)]");
+    }
 
     const auto mask = mask_info::decode("0", seqlen_q, seqlen_k);
     fmha_vsa_fwd_traits traits{
@@ -109,6 +133,7 @@ void vsa_sparse_attention_fwd(aiter_tensor_t& q,
         v.data_ptr(),
         block_lut.data_ptr(),
         block_counts.data_ptr(),
+        kv_block_sizes.numel() > 0 ? kv_block_sizes.data_ptr() : nullptr,
         out.data_ptr(),
         static_cast<ck_tile::index_t>(seqlen_q),
         static_cast<ck_tile::index_t>(seqlen_k),
@@ -119,14 +144,14 @@ void vsa_sparse_attention_fwd(aiter_tensor_t& q,
         static_cast<ck_tile::index_t>(nhead_q),
         static_cast<ck_tile::index_t>(nhead_k),
         1.0f / std::sqrt(128.0f),
-        static_cast<ck_tile::index_t>(q.stride(2)),
-        static_cast<ck_tile::index_t>(k.stride(2)),
-        static_cast<ck_tile::index_t>(v.stride(2)),
-        static_cast<ck_tile::index_t>(out.stride(2)),
-        static_cast<ck_tile::index_t>(q.stride(1)),
-        static_cast<ck_tile::index_t>(k.stride(1)),
-        static_cast<ck_tile::index_t>(v.stride(1)),
-        static_cast<ck_tile::index_t>(out.stride(1)),
+        static_cast<ck_tile::index_t>(q.stride(sequence_axis)),
+        static_cast<ck_tile::index_t>(k.stride(sequence_axis)),
+        static_cast<ck_tile::index_t>(v.stride(sequence_axis)),
+        static_cast<ck_tile::index_t>(out.stride(sequence_axis)),
+        static_cast<ck_tile::index_t>(q.stride(head_axis)),
+        static_cast<ck_tile::index_t>(k.stride(head_axis)),
+        static_cast<ck_tile::index_t>(v.stride(head_axis)),
+        static_cast<ck_tile::index_t>(out.stride(head_axis)),
         static_cast<ck_tile::index_t>(q.stride(0)),
         static_cast<ck_tile::index_t>(k.stride(0)),
         static_cast<ck_tile::index_t>(v.stride(0)),

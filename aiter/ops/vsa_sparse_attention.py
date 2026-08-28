@@ -14,14 +14,26 @@ def _validate_vsa_inputs(
     v: Tensor,
     block_lut: Tensor,
     block_counts: Tensor,
+    kv_block_sizes: Tensor | None,
+    out: Tensor | None,
+    is_bshd: bool,
 ) -> None:
+    layout = "BSHD" if is_bshd else "BHSD"
+    shape = "[B, S, H, D]" if is_bshd else "[B, H, S, D]"
+    sequence_axis = 1 if is_bshd else 2
+    head_axis = 2 if is_bshd else 1
     for name, tensor in (("q", q), ("k", k), ("v", v)):
         if not isinstance(tensor, Tensor) or not tensor.is_cuda:
             raise RuntimeError(f"{name} must be a GPU tensor")
         if tensor.dim() != 4:
-            raise RuntimeError(f"{name} must have shape [B, H, S, D]")
-        if not tensor.is_contiguous():
-            raise RuntimeError(f"{name} must be contiguous BHSD")
+            raise RuntimeError(f"{name} must have shape {shape}")
+        if is_bshd:
+            if tensor.stride(-1) != 1:
+                raise RuntimeError(
+                    f"{name} must have a contiguous last dimension"
+                )
+        elif not tensor.is_contiguous():
+            raise RuntimeError(f"{name} must be contiguous {layout}")
         if tensor.dtype not in (torch.float16, torch.bfloat16):
             raise RuntimeError(f"{name} must have dtype float16 or bfloat16")
 
@@ -29,21 +41,39 @@ def _validate_vsa_inputs(
         raise RuntimeError("q, k, and v must be on the same GPU")
     if q.dtype != k.dtype or q.dtype != v.dtype:
         raise RuntimeError("q, k, and v must have the same dtype")
-    if q.size(0) <= 0 or q.size(1) <= 0 or k.size(1) <= 0:
+    if out is not None:
+        if not isinstance(out, Tensor) or not out.is_cuda:
+            raise RuntimeError("out must be a GPU tensor")
+        if out.dim() != 4:
+            raise RuntimeError(f"out must have shape {shape}")
+        if out.shape != q.shape:
+            raise RuntimeError("out must have the same shape as q")
+        if out.device != q.device:
+            raise RuntimeError("out must be on the same GPU as q")
+        if out.dtype != q.dtype:
+            raise RuntimeError("out must have the same dtype as q")
+        if is_bshd:
+            if out.stride(-1) != 1:
+                raise RuntimeError(
+                    "out must have a contiguous last dimension"
+                )
+        elif not out.is_contiguous():
+            raise RuntimeError(f"out must be contiguous {layout}")
+    if q.size(0) <= 0 or q.size(head_axis) <= 0 or k.size(head_axis) <= 0:
         raise RuntimeError("batch size and head counts must be positive")
     if q.size(0) != k.size(0) or q.size(0) != v.size(0):
         raise RuntimeError("q, k, and v must have the same batch size")
     if k.shape != v.shape:
         raise RuntimeError("k and v must have the same shape")
-    if q.size(1) % k.size(1) != 0:
+    if q.size(head_axis) % k.size(head_axis) != 0:
         raise RuntimeError(
             "the number of query heads must be divisible by the number of KV heads"
         )
-    if q.size(3) != 128 or k.size(3) != 128:
+    if q.size(-1) != 128 or k.size(-1) != 128:
         raise RuntimeError(
             "VSA sparse attention currently supports head dimension 128 only"
         )
-    if q.size(2) <= 0 or k.size(2) <= 128:
+    if q.size(sequence_axis) <= 0 or k.size(sequence_axis) <= 128:
         raise RuntimeError(
             "query length must be positive and key length must exceed 128"
         )
@@ -58,15 +88,32 @@ def _validate_vsa_inputs(
         if not tensor.is_contiguous():
             raise RuntimeError(f"{name} must be contiguous")
 
-    batch, query_heads, seqlen_q, _ = q.shape
+    batch = q.size(0)
+    query_heads = q.size(head_axis)
+    seqlen_q = q.size(sequence_axis)
     query_blocks = (seqlen_q + 127) // 128
-    kv_blocks = (k.size(2) + 127) // 128
+    kv_blocks = (k.size(sequence_axis) + 127) // 128
     if block_lut.shape != (batch, query_heads, query_blocks, kv_blocks):
         raise RuntimeError(
             "block_lut must have shape [B, Hq, ceil(Sq/128), ceil(Sk/128)]"
         )
     if block_counts.shape != (batch, query_heads, query_blocks):
         raise RuntimeError("block_counts must have shape [B, Hq, ceil(Sq/128)]")
+
+    if kv_block_sizes is not None:
+        if not isinstance(kv_block_sizes, Tensor) or not kv_block_sizes.is_cuda:
+            raise RuntimeError("kv_block_sizes must be a GPU tensor")
+        if kv_block_sizes.device != q.device:
+            raise RuntimeError("kv_block_sizes must be on the same GPU as q")
+        if kv_block_sizes.dtype != torch.int32:
+            raise RuntimeError("kv_block_sizes must have dtype int32")
+        if not kv_block_sizes.is_contiguous():
+            raise RuntimeError("kv_block_sizes must be contiguous")
+        if kv_block_sizes.shape != (kv_blocks,):
+            raise RuntimeError("kv_block_sizes must have shape [ceil(Sk/128)]")
+        min_size, max_size = torch.aminmax(kv_block_sizes)
+        if min_size.item() < 1 or max_size.item() > 128:
+            raise RuntimeError("kv_block_sizes values must be between 1 and 128")
 
     min_count, max_count = torch.aminmax(block_counts)
     if min_count.item() < 1:
@@ -84,9 +131,26 @@ def _vsa_sparse_attention_fake(
     v: Tensor,
     block_lut: Tensor,
     block_counts: Tensor,
+    kv_block_sizes: Tensor | None = None,
 ) -> Tensor:
-    del k, v, block_lut, block_counts
+    del k, v, block_lut, block_counts, kv_block_sizes
     return torch.empty_like(q)
+
+
+def _vsa_sparse_attention_bshd_fake(
+    q: Tensor,
+    k: Tensor,
+    v: Tensor,
+    block_lut: Tensor,
+    block_counts: Tensor,
+    kv_block_sizes: Tensor | None = None,
+    *,
+    out: Tensor | None = None,
+) -> Tensor:
+    del k, v, block_lut, block_counts, kv_block_sizes
+    if out is not None:
+        return out
+    return torch.empty(q.shape, dtype=q.dtype, device=q.device)
 
 
 @compile_ops(
@@ -100,8 +164,38 @@ def _vsa_sparse_attention_fwd(
     v: Tensor,
     block_lut: Tensor,
     block_counts: Tensor,
+    kv_block_sizes: Tensor,
+    is_bshd: bool,
     out: Tensor,
 ) -> None: ...
+
+
+def _run_vsa_sparse_attention(
+    q: Tensor,
+    k: Tensor,
+    v: Tensor,
+    block_lut: Tensor,
+    block_counts: Tensor,
+    kv_block_sizes: Tensor | None = None,
+    *,
+    is_bshd: bool,
+    out: Tensor | None = None,
+) -> Tensor:
+    _validate_vsa_inputs(
+        q, k, v, block_lut, block_counts, kv_block_sizes, out, is_bshd
+    )
+    if kv_block_sizes is None:
+        kv_block_sizes = torch.empty(0, dtype=torch.int32, device=q.device)
+    if out is None:
+        out = (
+            torch.empty(q.shape, dtype=q.dtype, device=q.device)
+            if is_bshd
+            else torch.empty_like(q)
+        )
+    _vsa_sparse_attention_fwd(
+        q, k, v, block_lut, block_counts, kv_block_sizes, is_bshd, out
+    )
+    return out
 
 
 @torch_compile_guard(gen_fake=_vsa_sparse_attention_fake)
@@ -111,6 +205,7 @@ def vsa_sparse_attention(
     v: Tensor,
     block_lut: Tensor,
     block_counts: Tensor,
+    kv_block_sizes: Tensor | None = None,
 ) -> Tensor:
     """Run VSA block-sparse attention on contiguous BHSD tensors.
 
@@ -118,8 +213,45 @@ def vsa_sparse_attention(
     indices for each 128-token Q block. ``block_counts`` gives the number of
     active entries in each LUT row. The final LUT slot is reserved as a
     lookahead sentinel by the current CK pipeline.
+
+    ``kv_block_sizes`` optionally gives the valid token count in every
+    physical 128-token K/V block. It excludes padding stored inside the
+    sequence rather than only at the final sequence boundary.
     """
-    _validate_vsa_inputs(q, k, v, block_lut, block_counts)
-    out = torch.empty_like(q)
-    _vsa_sparse_attention_fwd(q, k, v, block_lut, block_counts, out)
-    return out
+    return _run_vsa_sparse_attention(
+        q,
+        k,
+        v,
+        block_lut,
+        block_counts,
+        kv_block_sizes,
+        is_bshd=False,
+    )
+
+
+@torch_compile_guard(gen_fake=_vsa_sparse_attention_bshd_fake)
+def vsa_sparse_attention_bshd(
+    q: Tensor,
+    k: Tensor,
+    v: Tensor,
+    block_lut: Tensor,
+    block_counts: Tensor,
+    kv_block_sizes: Tensor | None = None,
+    *,
+    out: Tensor | None = None,
+) -> Tensor:
+    """Run VSA block-sparse attention on logical BSHD tensors.
+
+    Q, K, V, and the optional caller-owned output may use arbitrary physical
+    strides as long as their last dimension is contiguous.
+    """
+    return _run_vsa_sparse_attention(
+        q,
+        k,
+        v,
+        block_lut,
+        block_counts,
+        kv_block_sizes,
+        is_bshd=True,
+        out=out,
+    )
