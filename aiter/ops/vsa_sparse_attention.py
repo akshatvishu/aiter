@@ -14,6 +14,7 @@ def _validate_vsa_inputs(
     v: Tensor,
     block_lut: Tensor,
     block_counts: Tensor,
+    kv_block_sizes: Tensor | None,
 ) -> None:
     for name, tensor in (("q", q), ("k", k), ("v", v)):
         if not isinstance(tensor, Tensor) or not tensor.is_cuda:
@@ -68,6 +69,25 @@ def _validate_vsa_inputs(
     if block_counts.shape != (batch, query_heads, query_blocks):
         raise RuntimeError("block_counts must have shape [B, Hq, ceil(Sq/128)]")
 
+    if kv_block_sizes is not None:
+        if not isinstance(kv_block_sizes, Tensor) or not kv_block_sizes.is_cuda:
+            raise RuntimeError("kv_block_sizes must be a GPU tensor")
+        if kv_block_sizes.device != q.device:
+            raise RuntimeError("kv_block_sizes must be on the same GPU as q")
+        if kv_block_sizes.dtype != torch.int32:
+            raise RuntimeError("kv_block_sizes must have dtype int32")
+        if not kv_block_sizes.is_contiguous():
+            raise RuntimeError("kv_block_sizes must be contiguous")
+        if kv_block_sizes.shape != (kv_blocks,):
+            raise RuntimeError(
+                "kv_block_sizes must have shape [ceil(Sk/128)]"
+            )
+        min_size, max_size = torch.aminmax(kv_block_sizes)
+        if min_size.item() < 1 or max_size.item() > 128:
+            raise RuntimeError(
+                "kv_block_sizes values must be between 1 and 128"
+            )
+
     min_count, max_count = torch.aminmax(block_counts)
     if min_count.item() < 1:
         raise RuntimeError("every query block must select at least one KV block")
@@ -84,8 +104,9 @@ def _vsa_sparse_attention_fake(
     v: Tensor,
     block_lut: Tensor,
     block_counts: Tensor,
+    kv_block_sizes: Tensor | None = None,
 ) -> Tensor:
-    del k, v, block_lut, block_counts
+    del k, v, block_lut, block_counts, kv_block_sizes
     return torch.empty_like(q)
 
 
@@ -100,6 +121,7 @@ def _vsa_sparse_attention_fwd(
     v: Tensor,
     block_lut: Tensor,
     block_counts: Tensor,
+    kv_block_sizes: Tensor,
     out: Tensor,
 ) -> None: ...
 
@@ -111,6 +133,7 @@ def vsa_sparse_attention(
     v: Tensor,
     block_lut: Tensor,
     block_counts: Tensor,
+    kv_block_sizes: Tensor | None = None,
 ) -> Tensor:
     """Run VSA block-sparse attention on contiguous BHSD tensors.
 
@@ -118,8 +141,18 @@ def vsa_sparse_attention(
     indices for each 128-token Q block. ``block_counts`` gives the number of
     active entries in each LUT row. The final LUT slot is reserved as a
     lookahead sentinel by the current CK pipeline.
+
+    ``kv_block_sizes`` optionally gives the valid token count in every
+    physical 128-token K/V block. It excludes padding stored inside the
+    sequence rather than only at the final sequence boundary.
     """
-    _validate_vsa_inputs(q, k, v, block_lut, block_counts)
+    _validate_vsa_inputs(q, k, v, block_lut, block_counts, kv_block_sizes)
+    if kv_block_sizes is None:
+        kv_block_sizes = torch.empty(
+            0, dtype=torch.int32, device=q.device
+        )
     out = torch.empty_like(q)
-    _vsa_sparse_attention_fwd(q, k, v, block_lut, block_counts, out)
+    _vsa_sparse_attention_fwd(
+        q, k, v, block_lut, block_counts, kv_block_sizes, out
+    )
     return out

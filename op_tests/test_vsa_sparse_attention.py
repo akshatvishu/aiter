@@ -52,7 +52,7 @@ def make_delta_lut(batch, heads, seqlen_q, seqlen_k, active_blocks, device):
     return lut, counts, selected
 
 
-def masked_dense_reference(q, k, v, selected):
+def masked_dense_reference(q, k, v, selected, kv_block_sizes=None):
     batch, heads, seqlen_q, _ = q.shape
     seqlen_k = k.size(2)
     q_blocks = math.ceil(seqlen_q / BLOCK_SIZE)
@@ -67,7 +67,12 @@ def masked_dense_reference(q, k, v, selected):
             for h in range(heads):
                 for block in selected[b, h, qb].tolist():
                     k_start = block * BLOCK_SIZE
-                    k_end = min(k_start + BLOCK_SIZE, seqlen_k)
+                    valid_size = (
+                        BLOCK_SIZE
+                        if kv_block_sizes is None
+                        else int(kv_block_sizes[block].item())
+                    )
+                    k_end = min(k_start + valid_size, seqlen_k)
                     block_mask[b, h, q_start:q_end, k_start:k_end] = True
 
     scores = torch.matmul(q.float(), k.float().transpose(-1, -2)) / math.sqrt(
@@ -106,6 +111,29 @@ def test_vsa_sparse_attention_parity(dtype, active_blocks):
 
     actual = aiter.vsa_sparse_attention(q, k, v, lut, counts)
     expected = masked_dense_reference(q, k, v, selected)
+
+    torch.testing.assert_close(actual, expected, atol=3e-2, rtol=3e-2)
+
+
+@pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
+def test_vsa_sparse_attention_variable_kv_block_sizes(dtype):
+    device = torch.device("cuda")
+    batch, heads, seqlen_q, seqlen_k, dim = 1, 2, 257, 512, 128
+    torch.manual_seed(13)
+    q = torch.randn(batch, heads, seqlen_q, dim, device=device, dtype=dtype)
+    k = torch.randn(batch, heads, seqlen_k, dim, device=device, dtype=dtype)
+    v = torch.randn_like(k)
+    lut, counts, selected = make_delta_lut(
+        batch, heads, seqlen_q, seqlen_k, 3, device
+    )
+    kv_block_sizes = torch.tensor(
+        [17, 128, 73, 97], dtype=torch.int32, device=device
+    )
+
+    actual = aiter.vsa_sparse_attention(
+        q, k, v, lut, counts, kv_block_sizes
+    )
+    expected = masked_dense_reference(q, k, v, selected, kv_block_sizes)
 
     torch.testing.assert_close(actual, expected, atol=3e-2, rtol=3e-2)
 
@@ -323,6 +351,48 @@ def test_vsa_sparse_attention_validation(mutate, match):
     args = mutate(q, k, v, lut, counts)
     with pytest.raises(RuntimeError, match=match):
         aiter.vsa_sparse_attention(*args)
+
+
+@pytest.mark.parametrize(
+    ("mutate", "match"),
+    [
+        (lambda sizes: sizes.cpu(), "GPU tensor"),
+        (lambda sizes: sizes.long(), "dtype int32"),
+        (lambda sizes: sizes.expand(2, -1), "contiguous"),
+        (lambda sizes: sizes[:-1], "shape \\[ceil\\(Sk/128\\)\\]"),
+        (lambda sizes: sizes.clone().fill_(0), "between 1 and 128"),
+        (lambda sizes: sizes.clone().fill_(129), "between 1 and 128"),
+    ],
+)
+def test_vsa_sparse_attention_validates_kv_block_sizes(mutate, match):
+    device = torch.device("cuda")
+    q = torch.randn(1, 1, 128, 128, device=device, dtype=torch.float16)
+    k = torch.randn(1, 1, 384, 128, device=device, dtype=torch.float16)
+    v = torch.randn_like(k)
+    lut, counts, _ = make_delta_lut(1, 1, 128, 384, 1, device)
+    kv_block_sizes = torch.full(
+        (3,), BLOCK_SIZE, dtype=torch.int32, device=device
+    )
+
+    with pytest.raises(RuntimeError, match=match):
+        aiter.vsa_sparse_attention(
+            q, k, v, lut, counts, mutate(kv_block_sizes)
+        )
+
+
+def test_vsa_sparse_attention_rejects_cross_device_kv_block_sizes():
+    if torch.cuda.device_count() < 2:
+        pytest.skip("requires two GPUs")
+    q = torch.randn(1, 1, 128, 128, device="cuda:0", dtype=torch.float16)
+    k = torch.randn(1, 1, 384, 128, device="cuda:0", dtype=torch.float16)
+    v = torch.randn_like(k)
+    lut, counts, _ = make_delta_lut(1, 1, 128, 384, 1, q.device)
+    kv_block_sizes = torch.full(
+        (3,), BLOCK_SIZE, dtype=torch.int32, device="cuda:1"
+    )
+
+    with pytest.raises(RuntimeError, match="same GPU"):
+        aiter.vsa_sparse_attention(q, k, v, lut, counts, kv_block_sizes)
 
 
 @pytest.mark.skipif(torch.cuda.device_count() < 2, reason="requires two GPUs")

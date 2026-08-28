@@ -10,11 +10,12 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     AITER_SET_STREAM_PYBIND
     m.def("vsa_sparse_attention_fwd",
           &vsa_sparse_attention_fwd,
-          "vsa_sparse_attention_fwd(q, k, v, block_lut, block_counts, out)",
+          "vsa_sparse_attention_fwd(q, k, v, block_lut, block_counts, kv_block_sizes, out)",
           py::arg("q"),
           py::arg("k"),
           py::arg("v"),
           py::arg("block_lut"),
           py::arg("block_counts"),
+          py::arg("kv_block_sizes"),
           py::arg("out"));
 }

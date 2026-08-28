@@ -40,6 +40,7 @@ void vsa_sparse_attention_fwd(aiter_tensor_t& q,
                               aiter_tensor_t& v,
                               aiter_tensor_t& block_lut,
                               aiter_tensor_t& block_counts,
+                              aiter_tensor_t& kv_block_sizes,
                               aiter_tensor_t& out)
 {
     check_bhsd_tensor(q, "q");
@@ -95,6 +96,17 @@ void vsa_sparse_attention_fwd(aiter_tensor_t& q,
             block_counts.size(1) == nhead_q && block_counts.size(2) == q_blocks,
         "block_counts must have shape [B, Hq, ceil(Sq/128)]");
 
+    if(kv_block_sizes.numel() > 0)
+    {
+        AITER_CHECK(kv_block_sizes.is_gpu() && kv_block_sizes.device_id == q.device_id,
+                    "kv_block_sizes must be on the same GPU as q");
+        AITER_CHECK(kv_block_sizes.dtype() == AITER_DTYPE_i32,
+                    "kv_block_sizes must have dtype int32");
+        AITER_CHECK(kv_block_sizes.is_contiguous(), "kv_block_sizes must be contiguous");
+        AITER_CHECK(kv_block_sizes.dim() == 1 && kv_block_sizes.size(0) == kv_blocks,
+                    "kv_block_sizes must have shape [ceil(Sk/128)]");
+    }
+
     const auto mask = mask_info::decode("0", seqlen_q, seqlen_k);
     fmha_vsa_fwd_traits traits{
         128,
@@ -109,6 +121,7 @@ void vsa_sparse_attention_fwd(aiter_tensor_t& q,
         v.data_ptr(),
         block_lut.data_ptr(),
         block_counts.data_ptr(),
+        kv_block_sizes.numel() > 0 ? kv_block_sizes.data_ptr() : nullptr,
         out.data_ptr(),
         static_cast<ck_tile::index_t>(seqlen_q),
         static_cast<ck_tile::index_t>(seqlen_k),
