@@ -7,6 +7,8 @@ from torch import Tensor
 from ..jit.core import compile_ops
 from ..utility.dtypes import get_dtype_fp8
 
+FUSED_QK_NORM_ROPE_2WAY_SUPPORTS_STRIDED_INPUTS = True
+
 
 @compile_ops(
     "module_fused_qk_norm_rope_cache_quant_shuffle",
@@ -277,7 +279,12 @@ def fused_qk_norm_rope_2way(
     eps: float,
     out_q01: Tensor,
     out_k01: Tensor,
-) -> None: ...
+) -> None:
+    """Apply fused Q/K RMSNorm and RoPE to two token streams.
+
+    Contiguous inputs retain the metadata-defined layout. Strided inputs must be
+    shaped ``[B, T, H, D]`` and remain contiguous within each head.
+    """
 
 
 @compile_ops("module_fused_qk_norm_rope_cache_quant_shuffle", develop=True)
@@ -448,9 +455,7 @@ def fused_qk_norm_rope_group_quant(
             32,
             64,
         ), f"quant_group_size must be one of {{32, 64}}, got {quant_group_size}"
-        assert (
-            head_dim - rot_dim
-        ) % quant_group_size == 0, (
+        assert (head_dim - rot_dim) % quant_group_size == 0, (
             "NoPE size (head_dim - rot_dim) must be divisible by quant_group_size"
         )
     if q_nope_scale_buff is None:

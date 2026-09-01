@@ -90,6 +90,38 @@ activation_strides_logical_3d(const aiter_tensor_t& t, int64_t num_heads, int64_
                 "q/k/v 3D shape must be [T, num_heads, head_dim]");
     return {t.stride(0), t.stride(1), t.stride(2)};
 }
+
+struct Qk2WayActivationStrides
+{
+    int64_t batch;
+    int64_t token;
+};
+
+inline Qk2WayActivationStrides qk_2way_activation_strides(const aiter_tensor_t& t,
+                                                          int64_t batch_size,
+                                                          int64_t num_tokens,
+                                                          int64_t num_heads,
+                                                          int64_t head_size)
+{
+    AITER_CHECK(t.numel() == batch_size * num_tokens * num_heads * head_size,
+                "q/k tensor has ",
+                t.numel(),
+                " elements, expected ",
+                batch_size * num_tokens * num_heads * head_size);
+    if(t.is_contiguous())
+    {
+        return {num_tokens * num_heads * head_size, num_heads * head_size};
+    }
+
+    AITER_CHECK(t.dim() == 4, "strided q/k tensor must have shape [B, T, H, D]");
+    AITER_CHECK(t.size(0) == batch_size && t.size(1) == num_tokens && t.size(2) == num_heads &&
+                    t.size(3) == head_size,
+                "strided q/k tensor shape must match [batch_size, num_tokens, num_heads, "
+                "head_size]");
+    AITER_CHECK(t.stride(3) == 1 && t.stride(2) == head_size,
+                "strided q/k tensor must be contiguous within each head");
+    return {t.stride(0), t.stride(1)};
+}
 } // namespace aiter
 
 namespace {
@@ -1408,6 +1440,14 @@ __global__ void fused_rope_rms_2way_kernel(const T* q0_,
                                            const T* w_k1,
                                            const T* cos_sin0,
                                            const T* cos_sin1,
+                                           int64_t q0_batch_stride,
+                                           int64_t q0_token_stride,
+                                           int64_t k0_batch_stride,
+                                           int64_t k0_token_stride,
+                                           int64_t q1_batch_stride,
+                                           int64_t q1_token_stride,
+                                           int64_t k1_batch_stride,
+                                           int64_t k1_token_stride,
                                            int num_tokens0,
                                            int num_tokens1,
                                            int num_heads_q,
@@ -1430,10 +1470,10 @@ __global__ void fused_rope_rms_2way_kernel(const T* q0_,
     }
     // batch_size, num_tokens, num_heads, head_size
     int batch_id = blockIdx.y;
-    auto q0      = q0_ + batch_id * num_tokens0 * num_heads_q * HEAD_SIZE;
-    auto k0      = k0_ + batch_id * num_tokens0 * num_heads_k * HEAD_SIZE;
-    auto q1      = q1_ + batch_id * num_tokens1 * num_heads_q * HEAD_SIZE;
-    auto k1      = k1_ + batch_id * num_tokens1 * num_heads_k * HEAD_SIZE;
+    auto q0      = q0_ + batch_id * q0_batch_stride;
+    auto k0      = k0_ + batch_id * k0_batch_stride;
+    auto q1      = q1_ + batch_id * q1_batch_stride;
+    auto k1      = k1_ + batch_id * k1_batch_stride;
     auto out_q01 = out_q01_ + batch_id * (num_tokens0 + num_tokens1) * num_heads_q * HEAD_SIZE;
     auto out_k01 = out_k01_ + batch_id * (num_tokens0 + num_tokens1) * num_heads_k * HEAD_SIZE;
     int warp_offset_q0 = 0;
@@ -1453,7 +1493,7 @@ __global__ void fused_rope_rms_2way_kernel(const T* q0_,
     int token_id;
     int specialized_warp_id;
     int head_id_in_token;
-    int data_offset;
+    int64_t data_offset;
 
     vec_t<T, VEC_SIZE> w_vec, x_vec, cos_sin_vec;
     vec_t<T, PAIR_VEC_SIZE> cos_vec, sin_vec;
@@ -1463,7 +1503,7 @@ __global__ void fused_rope_rms_2way_kernel(const T* q0_,
         specialized_warp_id = global_warp_id - warp_offset_q0;
         token_id            = specialized_warp_id / num_heads_q;
         head_id_in_token    = specialized_warp_id % num_heads_q;
-        data_offset         = (token_id * num_heads_q + head_id_in_token) * HEAD_SIZE;
+        data_offset         = token_id * q0_token_stride + head_id_in_token * HEAD_SIZE;
         w_vec.load(w_q0 + access_id_in_head);
         x_vec.load(q0 + data_offset + access_id_in_head);
         if constexpr(IS_NEOX)
@@ -1481,7 +1521,7 @@ __global__ void fused_rope_rms_2way_kernel(const T* q0_,
         specialized_warp_id = global_warp_id - warp_offset_k0;
         token_id            = specialized_warp_id / num_heads_k;
         head_id_in_token    = specialized_warp_id % num_heads_k;
-        data_offset         = (token_id * num_heads_k + head_id_in_token) * HEAD_SIZE;
+        data_offset         = token_id * k0_token_stride + head_id_in_token * HEAD_SIZE;
         w_vec.load(w_k0 + access_id_in_head);
         x_vec.load(k0 + data_offset + access_id_in_head);
         if constexpr(IS_NEOX)
@@ -1499,7 +1539,7 @@ __global__ void fused_rope_rms_2way_kernel(const T* q0_,
         specialized_warp_id = global_warp_id - warp_offset_q1;
         token_id            = specialized_warp_id / num_heads_q;
         head_id_in_token    = specialized_warp_id % num_heads_q;
-        data_offset         = (token_id * num_heads_q + head_id_in_token) * HEAD_SIZE;
+        data_offset         = token_id * q1_token_stride + head_id_in_token * HEAD_SIZE;
         w_vec.load(w_q1 + access_id_in_head);
         x_vec.load(q1 + data_offset + access_id_in_head);
         if constexpr(IS_NEOX)
@@ -1517,7 +1557,7 @@ __global__ void fused_rope_rms_2way_kernel(const T* q0_,
         specialized_warp_id = global_warp_id - warp_offset_k1;
         token_id            = specialized_warp_id / num_heads_k;
         head_id_in_token    = specialized_warp_id % num_heads_k;
-        data_offset         = (token_id * num_heads_k + head_id_in_token) * HEAD_SIZE;
+        data_offset         = token_id * k1_token_stride + head_id_in_token * HEAD_SIZE;
         w_vec.load(w_k1 + access_id_in_head);
         x_vec.load(k1 + data_offset + access_id_in_head);
         if constexpr(IS_NEOX)
@@ -1606,6 +1646,14 @@ void fused_rope_rms_2way(const T* q0,
                          const T* w_k1,
                          const T* cos_sin0,
                          const T* cos_sin1,
+                         int64_t q0_batch_stride,
+                         int64_t q0_token_stride,
+                         int64_t k0_batch_stride,
+                         int64_t k0_token_stride,
+                         int64_t q1_batch_stride,
+                         int64_t q1_token_stride,
+                         int64_t k1_batch_stride,
+                         int64_t k1_token_stride,
                          int64_t batch_size,
                          int64_t num_tokens0,
                          int64_t num_tokens1,
@@ -1625,50 +1673,66 @@ void fused_rope_rms_2way(const T* q0,
     auto num_warps_per_block = block_size / WARP_SIZE;
     dim3 threadsPerBlock(block_size);
     dim3 numBlocks((total_warps + num_warps_per_block - 1) / num_warps_per_block, batch_size);
-#define DISPATCH_NEOX(HEAD_SIZE)                                     \
-    if(!is_interleaved)                                              \
-    {                                                                \
-        fused_rope_rms_2way_kernel<T, HEAD_SIZE, true>               \
-            <<<numBlocks, threadsPerBlock, 0, stream>>>(q0,          \
-                                                        k0,          \
-                                                        q1,          \
-                                                        k1,          \
-                                                        w_q0,        \
-                                                        w_k0,        \
-                                                        w_q1,        \
-                                                        w_k1,        \
-                                                        cos_sin0,    \
-                                                        cos_sin1,    \
-                                                        num_tokens0, \
-                                                        num_tokens1, \
-                                                        num_heads_q, \
-                                                        num_heads_k, \
-                                                        eps,         \
-                                                        total_warps, \
-                                                        out_q01,     \
-                                                        out_k01);    \
-    }                                                                \
-    else                                                             \
-    {                                                                \
-        fused_rope_rms_2way_kernel<T, HEAD_SIZE, false>              \
-            <<<numBlocks, threadsPerBlock, 0, stream>>>(q0,          \
-                                                        k0,          \
-                                                        q1,          \
-                                                        k1,          \
-                                                        w_q0,        \
-                                                        w_k0,        \
-                                                        w_q1,        \
-                                                        w_k1,        \
-                                                        cos_sin0,    \
-                                                        cos_sin1,    \
-                                                        num_tokens0, \
-                                                        num_tokens1, \
-                                                        num_heads_q, \
-                                                        num_heads_k, \
-                                                        eps,         \
-                                                        total_warps, \
-                                                        out_q01,     \
-                                                        out_k01);    \
+#define DISPATCH_NEOX(HEAD_SIZE)                                         \
+    if(!is_interleaved)                                                  \
+    {                                                                    \
+        fused_rope_rms_2way_kernel<T, HEAD_SIZE, true>                   \
+            <<<numBlocks, threadsPerBlock, 0, stream>>>(q0,              \
+                                                        k0,              \
+                                                        q1,              \
+                                                        k1,              \
+                                                        w_q0,            \
+                                                        w_k0,            \
+                                                        w_q1,            \
+                                                        w_k1,            \
+                                                        cos_sin0,        \
+                                                        cos_sin1,        \
+                                                        q0_batch_stride, \
+                                                        q0_token_stride, \
+                                                        k0_batch_stride, \
+                                                        k0_token_stride, \
+                                                        q1_batch_stride, \
+                                                        q1_token_stride, \
+                                                        k1_batch_stride, \
+                                                        k1_token_stride, \
+                                                        num_tokens0,     \
+                                                        num_tokens1,     \
+                                                        num_heads_q,     \
+                                                        num_heads_k,     \
+                                                        eps,             \
+                                                        total_warps,     \
+                                                        out_q01,         \
+                                                        out_k01);        \
+    }                                                                    \
+    else                                                                 \
+    {                                                                    \
+        fused_rope_rms_2way_kernel<T, HEAD_SIZE, false>                  \
+            <<<numBlocks, threadsPerBlock, 0, stream>>>(q0,              \
+                                                        k0,              \
+                                                        q1,              \
+                                                        k1,              \
+                                                        w_q0,            \
+                                                        w_k0,            \
+                                                        w_q1,            \
+                                                        w_k1,            \
+                                                        cos_sin0,        \
+                                                        cos_sin1,        \
+                                                        q0_batch_stride, \
+                                                        q0_token_stride, \
+                                                        k0_batch_stride, \
+                                                        k0_token_stride, \
+                                                        q1_batch_stride, \
+                                                        q1_token_stride, \
+                                                        k1_batch_stride, \
+                                                        k1_token_stride, \
+                                                        num_tokens0,     \
+                                                        num_tokens1,     \
+                                                        num_heads_q,     \
+                                                        num_heads_k,     \
+                                                        eps,             \
+                                                        total_warps,     \
+                                                        out_q01,         \
+                                                        out_k01);        \
     }
     switch(head_size)
     {
@@ -3474,11 +3538,18 @@ void fused_qk_norm_rope_2way(aiter_tensor_t& q0,
                              aiter_tensor_t& out_q01,
                              aiter_tensor_t& out_k01)
 {
-    AITER_CHECK(q0.is_contiguous() && k0.is_contiguous() && q1.is_contiguous() &&
-                k1.is_contiguous());
     AITER_CHECK(w_q0.is_contiguous() && w_k0.is_contiguous() && w_q1.is_contiguous() &&
                 w_k1.is_contiguous());
     AITER_CHECK(cos_sin0.is_contiguous() && cos_sin1.is_contiguous());
+    AITER_CHECK(out_q01.is_contiguous() && out_k01.is_contiguous());
+    const auto q0_strides =
+        qk_2way_activation_strides(q0, batch_size, num_tokens0, num_heads_q, head_size);
+    const auto k0_strides =
+        qk_2way_activation_strides(k0, batch_size, num_tokens0, num_heads_k, head_size);
+    const auto q1_strides =
+        qk_2way_activation_strides(q1, batch_size, num_tokens1, num_heads_q, head_size);
+    const auto k1_strides =
+        qk_2way_activation_strides(k1, batch_size, num_tokens1, num_heads_k, head_size);
     HipDeviceGuard device_guard(q0.device_id);
     const hipStream_t stream = aiter::getCurrentHIPStream();
     VLLM_DISPATCH_FLOATING_TYPES_rmTorch(q0.dtype(), "fused_qk_norm_rope_2way", [&] {
@@ -3493,6 +3564,14 @@ void fused_qk_norm_rope_2way(aiter_tensor_t& q0,
                                reinterpret_cast<T*>(w_k1.data_ptr()),
                                reinterpret_cast<T*>(cos_sin0.data_ptr()),
                                reinterpret_cast<T*>(cos_sin1.data_ptr()),
+                               q0_strides.batch,
+                               q0_strides.token,
+                               k0_strides.batch,
+                               k0_strides.token,
+                               q1_strides.batch,
+                               q1_strides.token,
+                               k1_strides.batch,
+                               k1_strides.token,
                                batch_size,
                                num_tokens0,
                                num_tokens1,
