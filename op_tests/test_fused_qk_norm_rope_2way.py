@@ -1,6 +1,10 @@
 # SPDX-License-Identifier: MIT
 # Copyright (C) 2024-2026, Advanced Micro Devices, Inc. All rights reserved.
 
+import signal
+import subprocess
+import sys
+
 import pytest
 import torch
 import torch.nn.functional as F
@@ -184,6 +188,17 @@ def test_fused_qk_norm_rope_2way_matches_reference(
 def test_fused_qk_norm_rope_2way_rejects_noncontiguous_heads(
     invalid_stride: str,
 ) -> None:
+    result = subprocess.run(
+        [sys.executable, __file__, "--invalid-stride", invalid_stride],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    assert result.returncode == -signal.SIGABRT, result.stderr
+
+
+def _invoke_invalid_stride(invalid_stride: str) -> None:
     batch_size = 1
     tokens0 = 5
     tokens1 = 7
@@ -234,27 +249,29 @@ def test_fused_qk_norm_rope_2way_rejects_noncontiguous_heads(
     )
     k_out = torch.empty_like(q_out)
 
-    with pytest.raises(RuntimeError, match="contiguous within each head"):
-        aiter.fused_qk_norm_rope_2way(
-            q0,
-            k0,
-            q1,
-            k1,
-            *weights,
-            cos_sin0,
-            cos_sin1,
-            batch_size,
-            tokens0,
-            tokens1,
-            num_heads,
-            num_heads,
-            head_size,
-            True,
-            1e-6,
-            q_out,
-            k_out,
-        )
+    aiter.fused_qk_norm_rope_2way(
+        q0,
+        k0,
+        q1,
+        k1,
+        *weights,
+        cos_sin0,
+        cos_sin1,
+        batch_size,
+        tokens0,
+        tokens1,
+        num_heads,
+        num_heads,
+        head_size,
+        True,
+        1e-6,
+        q_out,
+        k_out,
+    )
 
 
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--invalid-stride":
+        _invoke_invalid_stride(sys.argv[2])
+        raise SystemExit("Expected AITER_CHECK to abort")
     raise SystemExit(pytest.main([__file__, "-v"]))
