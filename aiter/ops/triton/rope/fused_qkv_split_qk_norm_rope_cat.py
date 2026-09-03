@@ -146,4 +146,3 @@ def fused_qkv_split_qk_norm_rope_cat(
         num_warps=4,
     )
     return joint_q, joint_k, joint_v
-

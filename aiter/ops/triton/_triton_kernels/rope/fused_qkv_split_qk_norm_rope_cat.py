@@ -199,4 +199,3 @@ def _fused_qkv_split_qk_norm_rope_cat_kernel(
         txt_mask,
     )
     tl.store(joint_v_ptr + output_offsets, v, mask=token_mask[:, None])
-
