@@ -4,10 +4,9 @@
 import argparse
 import itertools
 
+import aiter
 import pandas as pd
 import torch
-
-import aiter
 from aiter import dtypes
 from aiter.jit.utils.chip_info import get_gfx
 from aiter.ops.quant import dynamic_per_tensor_quant, static_per_tensor_quant
