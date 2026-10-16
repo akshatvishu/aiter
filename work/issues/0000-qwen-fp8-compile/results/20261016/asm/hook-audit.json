@@ -1,0 +1,23 @@
+{
+  "hook_revision": "f8731b53c3fb5a88c9acee15d3e5f65e540f6ff3",
+  "hook_sha256": "f24c049792764705927ce9ee78d740546c087a00ad1e26b752d2c5075f5e4e1e",
+  "tools": {
+    "black": "24.4.2",
+    "ruff": "0.16.0"
+  },
+  "test": {
+    "before_sha256": "ec2cc2c832af3122cff63c97c9f74c28aaa7cc481962c98e4916fe4b0cd6b206",
+    "after_sha256": "ec2cc2c832af3122cff63c97c9f74c28aaa7cc481962c98e4916fe4b0cd6b206",
+    "staged_sha256": "ec2cc2c832af3122cff63c97c9f74c28aaa7cc481962c98e4916fe4b0cd6b206",
+    "source_still_identical": true,
+    "non_ascii_bytes": 0,
+    "hook_returncode": 0,
+    "checks": {
+      "black": 0,
+      "ruff": 0,
+      "black_version": 0,
+      "ruff_version": 0
+    },
+    "unchanged": true
+  }
+}

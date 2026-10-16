@@ -1,0 +1,9 @@
+{
+  "original_head": "f8731b53c3fb5a88c9acee15d3e5f65e540f6ff3",
+  "verification_head": "1bc8f6ae1f5295f0a6bf5b99237642fb9ba8b11d",
+  "original_exit": 0,
+  "original_output_empty": true,
+  "verification_exit": 0,
+  "verification_tests_collected": 17,
+  "scope": "CPU direct-script collection only; GPU results used explicit pytest invocation."
+}

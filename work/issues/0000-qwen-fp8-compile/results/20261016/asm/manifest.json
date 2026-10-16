@@ -1,0 +1,23 @@
+{
+  "measurement_date": "2026-10-16",
+  "publication_date": "2026-10-17",
+  "new_gpu_work": false,
+  "files": {
+    "README.md": {
+      "sha256": "ff7307bdc5073502dccfbb8167fe3d184094b2965dc278b84516e4a8342df4a6",
+      "bytes": 2426
+    },
+    "direct-script-check.json": {
+      "sha256": "338a5fe4fa0d23f689f8a0034a58a698fed40457c6a45fca2d2899dd86a4a2ef",
+      "bytes": 346
+    },
+    "hook-audit.json": {
+      "sha256": "7e2a92a0c43aad3635bba1c18967b388db0718d0c16b3e534c4375030e6b5f4b",
+      "bytes": 714
+    },
+    "results.json": {
+      "sha256": "4735cf51aa1c68a16e79225e9b590d5065190fe51040c8b8ab17faf72a9c5478",
+      "bytes": 1395
+    }
+  }
+}

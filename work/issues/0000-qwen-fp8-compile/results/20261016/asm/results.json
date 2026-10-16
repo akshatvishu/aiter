@@ -1,0 +1,41 @@
+{
+  "head": "1bc8f6ae1f5295f0a6bf5b99237642fb9ba8b11d",
+  "test_sha256": "ec2cc2c832af3122cff63c97c9f74c28aaa7cc481962c98e4916fe4b0cd6b206",
+  "runs": {
+    "original": {
+      "code_object": "gfx942/fmha_v3_fwd/MI300/fwd_hd128_fp8.co",
+      "sha256": "7bffc09e0fea2165b609e3661c896839bff3d0418e4511e99ef62bc2101c8b04",
+      "returncode": 1,
+      "loader_confirmed": true,
+      "tests": 17,
+      "failures": [
+        "test_constant_v[first--7.0-4096]",
+        "test_constant_v[first--7.0-4117]",
+        "test_constant_v[first--8.0-4096]",
+        "test_constant_v[first--8.0-4117]",
+        "test_constant_v[first-spread-4096]",
+        "test_constant_v[first-spread-4117]"
+      ],
+      "errors": [],
+      "skips": []
+    },
+    "patched": {
+      "code_object": "gfx942/fmha_v3_fwd/MI300/fwd_hd128_fp8.co",
+      "sha256": "e5575cb14fe020289f31dd0653d213f792724b71a76a993219eae215fda435dc",
+      "returncode": 0,
+      "loader_confirmed": true,
+      "tests": 17,
+      "failures": [],
+      "errors": [],
+      "skips": []
+    }
+  },
+  "patched_per_case_max_errors": null,
+  "patched_margin_note": "Passing assertions were recorded; maximum errors and outputs were not saved.",
+  "original_first_maximum_errors": {
+    "minus_7_both_lengths": 0.0546875,
+    "minus_8_length_4096": 0.578125,
+    "minus_8_length_4117": 0.580078125,
+    "exact_spread_both_lengths": 0.14453125
+  }
+}
