@@ -1,0 +1,23 @@
+{
+  "base": "6d2aa05b63030cc10fd5bc06329c85bd222bf931",
+  "head": "6dbad62f60cdffd6f2ba808214296b1870437a18",
+  "hook_sha256": "f24c049792764705927ce9ee78d740546c087a00ad1e26b752d2c5075f5e4e1e",
+  "hook_identical_to_f8731b53": true,
+  "pyproject_sha256": "0bcfc1f86450fc69fd33fd31ba73bd6f8f272b0adc5d7259b96217ad22c37050",
+  "before_sha256": "0968af3d2903b70b74a151020ff35d2ff025df116eda5c9bb03abc3a9addb23a",
+  "after_sha256": "0968af3d2903b70b74a151020ff35d2ff025df116eda5c9bb03abc3a9addb23a",
+  "staged_sha256": "0968af3d2903b70b74a151020ff35d2ff025df116eda5c9bb03abc3a9addb23a",
+  "source_unchanged": true,
+  "matches_pushed_head": true,
+  "byte_identical": true,
+  "non_ascii_bytes": 0,
+  "checks": {
+    "hook": 0,
+    "black": 0,
+    "ruff": 0,
+    "black-version": 0,
+    "ruff-version": 0
+  },
+  "black_version": "black, 24.4.2 (compiled: yes)\nPython (CPython) 3.12.10",
+  "ruff_version": "ruff 0.16.0"
+}

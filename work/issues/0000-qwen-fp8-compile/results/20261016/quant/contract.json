@@ -1,0 +1,8 @@
+{
+  "base": "6d2aa05b63030cc10fd5bc06329c85bd222bf931",
+  "head": "50d572a196401f820e64df9a4b8a7d2514b7fa67",
+  "correctness": "168 strict raw-byte/scale-bit cases per native arm, plus 32 dispatch cases per arm. No successful skips. Five poison/repeat checks before timings and a post-timing exact check.",
+  "timing": "Three fresh-process A/A pairs and three alternating base/candidate pairs; FP16/BF16 input, FP8/INT8 output; rows 1,21,511,512,513,4096; widths 3072,12288,4096,8192; warm and 256-MiB-flushed graphs. Eleven samples per case.",
+  "decision": "Report every case. Call an optimized case faster only if all three pairs improve and median relative latency reduction exceeds both 5% and maximum absolute A/A pair variation. Flag any fallback median regression greater than both 5% and maximum absolute A/A variation. Otherwise inconclusive. No extra rounds to rescue results.",
+  "scope": "Native op correctness and performance on gfx942 only. No new end-to-end speed claim or gfx950 validation."
+}

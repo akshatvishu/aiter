@@ -1,0 +1,492 @@
+{
+  "arm": "base",
+  "torch": "2.13.0+git733fca1",
+  "hip": "7.2.53211",
+  "rows": [
+    {
+      "shape": [
+        512,
+        3072
+      ],
+      "dtype": "torch.bfloat16",
+      "quant": "torch.float8_e4m3fnuz",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "_ZN5aiter20data_to_scale_kernelIDF16bDB8_EEvPfPKT_i.kd",
+        "_ZN5aiter19scaled_quant_kernelIDF16bDB8_EEvPT0_PKT_PKfi.kd"
+      ]
+    },
+    {
+      "shape": [
+        513,
+        3088
+      ],
+      "dtype": "torch.bfloat16",
+      "quant": "torch.float8_e4m3fnuz",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "_ZN5aiter20data_to_scale_kernelIDF16bDB8_EEvPfPKT_i.kd",
+        "_ZN5aiter19scaled_quant_kernelIDF16bDB8_EEvPT0_PKT_PKfi.kd"
+      ]
+    },
+    {
+      "shape": [
+        21,
+        3072
+      ],
+      "dtype": "torch.bfloat16",
+      "quant": "torch.float8_e4m3fnuz",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "_ZN5aiter20data_to_scale_kernelIDF16bDB8_EEvPfPKT_i.kd",
+        "_ZN5aiter19scaled_quant_kernelIDF16bDB8_EEvPT0_PKT_PKfi.kd"
+      ]
+    },
+    {
+      "shape": [
+        511,
+        3072
+      ],
+      "dtype": "torch.bfloat16",
+      "quant": "torch.float8_e4m3fnuz",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "_ZN5aiter20data_to_scale_kernelIDF16bDB8_EEvPfPKT_i.kd",
+        "_ZN5aiter19scaled_quant_kernelIDF16bDB8_EEvPT0_PKT_PKfi.kd"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        3072
+      ],
+      "dtype": "torch.bfloat16",
+      "quant": "torch.float8_e4m3fnuz",
+      "layout": "unaligned",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "_ZN5aiter20data_to_scale_kernelIDF16bDB8_EEvPfPKT_i.kd",
+        "_ZN5aiter19scaled_quant_kernelIDF16bDB8_EEvPT0_PKT_PKfi.kd"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        520
+      ],
+      "dtype": "torch.bfloat16",
+      "quant": "torch.float8_e4m3fnuz",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "_ZN5aiter20data_to_scale_kernelIDF16bDB8_EEvPfPKT_i.kd",
+        "_ZN5aiter19scaled_quant_kernelIDF16bDB8_EEvPT0_PKT_PKfi.kd"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        32
+      ],
+      "dtype": "torch.bfloat16",
+      "quant": "torch.float8_e4m3fnuz",
+      "layout": "strided",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "_ZN5aiter20data_to_scale_kernelIDF16bDB8_EEvPfPKT_i.kd",
+        "_ZN5aiter19scaled_quant_kernelIDF16bDB8_EEvPT0_PKT_PKfi.kd"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        32
+      ],
+      "dtype": "torch.bfloat16",
+      "quant": "torch.float8_e4m3fnuz",
+      "layout": "transposed",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "_ZN5aiter20data_to_scale_kernelIDF16bDB8_EEvPfPKT_i.kd",
+        "_ZN5aiter19scaled_quant_kernelIDF16bDB8_EEvPT0_PKT_PKfi.kd"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        3072
+      ],
+      "dtype": "torch.bfloat16",
+      "quant": "torch.int8",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "void aiter::data_to_scale_kernel<std::bfloat16_t, signed char>(float*, std::bfloat16_t const*, int) [clone .kd]",
+        "void aiter::scaled_quant_kernel<std::bfloat16_t, signed char>(signed char*, std::bfloat16_t const*, float const*, int) [clone .kd]"
+      ]
+    },
+    {
+      "shape": [
+        513,
+        3088
+      ],
+      "dtype": "torch.bfloat16",
+      "quant": "torch.int8",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "void aiter::data_to_scale_kernel<std::bfloat16_t, signed char>(float*, std::bfloat16_t const*, int) [clone .kd]",
+        "void aiter::scaled_quant_kernel<std::bfloat16_t, signed char>(signed char*, std::bfloat16_t const*, float const*, int) [clone .kd]"
+      ]
+    },
+    {
+      "shape": [
+        21,
+        3072
+      ],
+      "dtype": "torch.bfloat16",
+      "quant": "torch.int8",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "void aiter::data_to_scale_kernel<std::bfloat16_t, signed char>(float*, std::bfloat16_t const*, int) [clone .kd]",
+        "void aiter::scaled_quant_kernel<std::bfloat16_t, signed char>(signed char*, std::bfloat16_t const*, float const*, int) [clone .kd]"
+      ]
+    },
+    {
+      "shape": [
+        511,
+        3072
+      ],
+      "dtype": "torch.bfloat16",
+      "quant": "torch.int8",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "void aiter::data_to_scale_kernel<std::bfloat16_t, signed char>(float*, std::bfloat16_t const*, int) [clone .kd]",
+        "void aiter::scaled_quant_kernel<std::bfloat16_t, signed char>(signed char*, std::bfloat16_t const*, float const*, int) [clone .kd]"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        3072
+      ],
+      "dtype": "torch.bfloat16",
+      "quant": "torch.int8",
+      "layout": "unaligned",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "void aiter::data_to_scale_kernel<std::bfloat16_t, signed char>(float*, std::bfloat16_t const*, int) [clone .kd]",
+        "void aiter::scaled_quant_kernel<std::bfloat16_t, signed char>(signed char*, std::bfloat16_t const*, float const*, int) [clone .kd]"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        520
+      ],
+      "dtype": "torch.bfloat16",
+      "quant": "torch.int8",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "void aiter::data_to_scale_kernel<std::bfloat16_t, signed char>(float*, std::bfloat16_t const*, int) [clone .kd]",
+        "void aiter::scaled_quant_kernel<std::bfloat16_t, signed char>(signed char*, std::bfloat16_t const*, float const*, int) [clone .kd]"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        32
+      ],
+      "dtype": "torch.bfloat16",
+      "quant": "torch.int8",
+      "layout": "strided",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "void aiter::data_to_scale_kernel<std::bfloat16_t, signed char>(float*, std::bfloat16_t const*, int) [clone .kd]",
+        "void aiter::scaled_quant_kernel<std::bfloat16_t, signed char>(signed char*, std::bfloat16_t const*, float const*, int) [clone .kd]"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        32
+      ],
+      "dtype": "torch.bfloat16",
+      "quant": "torch.int8",
+      "layout": "transposed",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "void aiter::data_to_scale_kernel<std::bfloat16_t, signed char>(float*, std::bfloat16_t const*, int) [clone .kd]",
+        "void aiter::scaled_quant_kernel<std::bfloat16_t, signed char>(signed char*, std::bfloat16_t const*, float const*, int) [clone .kd]"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        3072
+      ],
+      "dtype": "torch.float16",
+      "quant": "torch.float8_e4m3fnuz",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "_ZN5aiter20data_to_scale_kernelIDhDB8_EEvPfPKT_i.kd",
+        "_ZN5aiter19scaled_quant_kernelIDhDB8_EEvPT0_PKT_PKfi.kd"
+      ]
+    },
+    {
+      "shape": [
+        513,
+        3088
+      ],
+      "dtype": "torch.float16",
+      "quant": "torch.float8_e4m3fnuz",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "_ZN5aiter20data_to_scale_kernelIDhDB8_EEvPfPKT_i.kd",
+        "_ZN5aiter19scaled_quant_kernelIDhDB8_EEvPT0_PKT_PKfi.kd"
+      ]
+    },
+    {
+      "shape": [
+        21,
+        3072
+      ],
+      "dtype": "torch.float16",
+      "quant": "torch.float8_e4m3fnuz",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "_ZN5aiter20data_to_scale_kernelIDhDB8_EEvPfPKT_i.kd",
+        "_ZN5aiter19scaled_quant_kernelIDhDB8_EEvPT0_PKT_PKfi.kd"
+      ]
+    },
+    {
+      "shape": [
+        511,
+        3072
+      ],
+      "dtype": "torch.float16",
+      "quant": "torch.float8_e4m3fnuz",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "_ZN5aiter20data_to_scale_kernelIDhDB8_EEvPfPKT_i.kd",
+        "_ZN5aiter19scaled_quant_kernelIDhDB8_EEvPT0_PKT_PKfi.kd"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        3072
+      ],
+      "dtype": "torch.float16",
+      "quant": "torch.float8_e4m3fnuz",
+      "layout": "unaligned",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "_ZN5aiter20data_to_scale_kernelIDhDB8_EEvPfPKT_i.kd",
+        "_ZN5aiter19scaled_quant_kernelIDhDB8_EEvPT0_PKT_PKfi.kd"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        520
+      ],
+      "dtype": "torch.float16",
+      "quant": "torch.float8_e4m3fnuz",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "_ZN5aiter20data_to_scale_kernelIDhDB8_EEvPfPKT_i.kd",
+        "_ZN5aiter19scaled_quant_kernelIDhDB8_EEvPT0_PKT_PKfi.kd"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        32
+      ],
+      "dtype": "torch.float16",
+      "quant": "torch.float8_e4m3fnuz",
+      "layout": "strided",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "_ZN5aiter20data_to_scale_kernelIDhDB8_EEvPfPKT_i.kd",
+        "_ZN5aiter19scaled_quant_kernelIDhDB8_EEvPT0_PKT_PKfi.kd"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        32
+      ],
+      "dtype": "torch.float16",
+      "quant": "torch.float8_e4m3fnuz",
+      "layout": "transposed",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "_ZN5aiter20data_to_scale_kernelIDhDB8_EEvPfPKT_i.kd",
+        "_ZN5aiter19scaled_quant_kernelIDhDB8_EEvPT0_PKT_PKfi.kd"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        3072
+      ],
+      "dtype": "torch.float16",
+      "quant": "torch.int8",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "void aiter::data_to_scale_kernel<half, signed char>(float*, half const*, int) [clone .kd]",
+        "void aiter::scaled_quant_kernel<half, signed char>(signed char*, half const*, float const*, int) [clone .kd]"
+      ]
+    },
+    {
+      "shape": [
+        513,
+        3088
+      ],
+      "dtype": "torch.float16",
+      "quant": "torch.int8",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "void aiter::data_to_scale_kernel<half, signed char>(float*, half const*, int) [clone .kd]",
+        "void aiter::scaled_quant_kernel<half, signed char>(signed char*, half const*, float const*, int) [clone .kd]"
+      ]
+    },
+    {
+      "shape": [
+        21,
+        3072
+      ],
+      "dtype": "torch.float16",
+      "quant": "torch.int8",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "void aiter::data_to_scale_kernel<half, signed char>(float*, half const*, int) [clone .kd]",
+        "void aiter::scaled_quant_kernel<half, signed char>(signed char*, half const*, float const*, int) [clone .kd]"
+      ]
+    },
+    {
+      "shape": [
+        511,
+        3072
+      ],
+      "dtype": "torch.float16",
+      "quant": "torch.int8",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "void aiter::data_to_scale_kernel<half, signed char>(float*, half const*, int) [clone .kd]",
+        "void aiter::scaled_quant_kernel<half, signed char>(signed char*, half const*, float const*, int) [clone .kd]"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        3072
+      ],
+      "dtype": "torch.float16",
+      "quant": "torch.int8",
+      "layout": "unaligned",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "void aiter::data_to_scale_kernel<half, signed char>(float*, half const*, int) [clone .kd]",
+        "void aiter::scaled_quant_kernel<half, signed char>(signed char*, half const*, float const*, int) [clone .kd]"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        520
+      ],
+      "dtype": "torch.float16",
+      "quant": "torch.int8",
+      "layout": "contiguous",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "void aiter::data_to_scale_kernel<half, signed char>(float*, half const*, int) [clone .kd]",
+        "void aiter::scaled_quant_kernel<half, signed char>(signed char*, half const*, float const*, int) [clone .kd]"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        32
+      ],
+      "dtype": "torch.float16",
+      "quant": "torch.int8",
+      "layout": "strided",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "void aiter::data_to_scale_kernel<half, signed char>(float*, half const*, int) [clone .kd]",
+        "void aiter::scaled_quant_kernel<half, signed char>(signed char*, half const*, float const*, int) [clone .kd]"
+      ]
+    },
+    {
+      "shape": [
+        512,
+        32
+      ],
+      "dtype": "torch.float16",
+      "quant": "torch.int8",
+      "layout": "transposed",
+      "partial": false,
+      "kernels": [
+        "aiter::initializeScale(float*, int, float) [clone .kd]",
+        "void aiter::data_to_scale_kernel<half, signed char>(float*, half const*, int) [clone .kd]",
+        "void aiter::scaled_quant_kernel<half, signed char>(signed char*, half const*, float const*, int) [clone .kd]"
+      ]
+    }
+  ],
+  "architecture": "gfx942",
+  "module_sha256": "ff875056859213fb6189025cd3a48e9e69ece827ca0a471fec697a9da261ba5a",
+  "native_source_sha256": "a8fc71dbfd47746628f9eab26aa16c6f5b2452744a94b2b8e55bc2d2ffba5ee2",
+  "original_record_sha256": "a944974fc8e9fe3890732e32b700727aae8a220ace4e3cb7a7b873cd75a1bc95",
+  "strict_cases": 168
+}
