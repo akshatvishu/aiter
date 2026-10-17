@@ -745,13 +745,41 @@ __device__ __forceinline__ float atomicMaxFloat(float *addr, float value)
     return old;
   }
 
-template <typename DTYPE_I, typename DTYPE_O, bool use_atomic = true>
+template <typename DTYPE_I, typename DTYPE_O, bool use_atomic = true, bool TicketReduce = false>
 __global__ void
-data_to_scale_kernel(float* __restrict__ scale, const DTYPE_I* __restrict__ input, const int cols)
+data_to_scale_kernel(float* __restrict__ scale, const DTYPE_I* __restrict__ input, const int cols,
+                     volatile float* partials = nullptr)
 {
     auto res        = data_to_per_row_scale<DTYPE_I, DTYPE_O, 0>(input, cols);
     float row_scale = std::get<0>(res);
-    if(threadIdx.x == 0)
+    if constexpr(TicketReduce)
+    {
+        static_assert(!use_atomic);
+        __shared__ bool last_block;
+        if(threadIdx.x == 0)
+        {
+            partials[blockIdx.x] = row_scale;
+            __threadfence();
+            auto* counter = reinterpret_cast<unsigned int*>(
+                const_cast<float*>(partials) + gridDim.x);
+            const unsigned int ticket = atomicInc(counter, gridDim.x);
+            // Acquire published partials before sharing the decision with this block.
+            __threadfence();
+            last_block = ticket == gridDim.x - 1;
+        }
+        // Also separates the two uses of block_reduce's shared staging buffer.
+        __syncthreads();
+        if(last_block)
+        {
+            float maximum = 0.0f;
+            for(unsigned int i = threadIdx.x; i < gridDim.x; i += BlockSize)
+                maximum = max(maximum, partials[i]);
+            maximum = block_reduce<float, aiter::Max, BlockSize, true>(maximum, aiter::Max());
+            if(threadIdx.x == 0)
+                *scale = maximum;
+        }
+    }
+    else if(threadIdx.x == 0)
     {
         if constexpr(use_atomic)
             atomicMaxFloat(scale, row_scale);
@@ -1185,10 +1213,14 @@ void dynamic_per_tensor_quant(aiter_tensor_t& out,         // [..., d]
     const int cols = input.size(-1);
     int rows       = input.numel() / cols;
     dim3 grid(rows);
-    // Keep the original row grid and write independent partial scales.
-    // Conversion overwrites the partial scales after their final reduction.
+    // Scratch holds one float per row followed by an initialized uint32 ticket.
+    // The subsequent conversion kernel overwrites scratch on this same stream.
+    static_assert(sizeof(float) == sizeof(unsigned int));
+    const size_t scratch_bytes = (static_cast<size_t>(rows) + 1) * sizeof(float);
     const bool use_partials = out.is_contiguous() && rows >= 512 && cols % 16 == 0 &&
-                              reinterpret_cast<uintptr_t>(out.data_ptr()) % alignof(float) == 0;
+                              out.numel() * out.element_size() >= scratch_bytes &&
+                              reinterpret_cast<uintptr_t>(out.data_ptr()) % alignof(float) == 0 &&
+                              reinterpret_cast<uintptr_t>(out.data_ptr()) % alignof(unsigned int) == 0;
     dim3 block(BlockSize);
     HipDeviceGuard device_guard(input.device_id);
     const hipStream_t stream = aiter::getCurrentHIPStream();
@@ -1198,13 +1230,13 @@ void dynamic_per_tensor_quant(aiter_tensor_t& out,         // [..., d]
             using input_dtype = typename aiter::hip2opus<scalar_t>::type;
             if(use_partials)
             {
-                // The output is unused until conversion. Its storage holds one float
-                // per reduction block, then conversion overwrites it on this stream.
                 auto* partials = reinterpret_cast<float*>(out.data_ptr());
-                aiter::data_to_scale_kernel<input_dtype, opus::fp8_t, false><<<grid, block, 0, stream>>>(
-                    partials, reinterpret_cast<input_dtype*>(input.data_ptr()), cols);
-                aiter::reduce_per_tensor_scale<<<dim3(1), block, 0, stream>>>(
-                    reinterpret_cast<float*>(scale.data_ptr()), partials, grid.x);
+                // Float positive zero initializes the uint32 counter to zero bits.
+                aiter::initializeScale<<<dim3(1), dim3(64), 0, stream>>>(
+                    partials + static_cast<size_t>(rows), 1, 0.0f);
+                aiter::data_to_scale_kernel<input_dtype, opus::fp8_t, false, true><<<grid, block, 0, stream>>>(
+                    reinterpret_cast<float*>(scale.data_ptr()),
+                    reinterpret_cast<input_dtype*>(input.data_ptr()), cols, partials);
             }
             else
             {
@@ -1226,13 +1258,13 @@ void dynamic_per_tensor_quant(aiter_tensor_t& out,         // [..., d]
             using input_dtype = typename aiter::hip2opus<scalar_t>::type;
             if(use_partials)
             {
-                // The output is unused until conversion. Its storage holds one float
-                // per reduction block, then conversion overwrites it on this stream.
                 auto* partials = reinterpret_cast<float*>(out.data_ptr());
-                aiter::data_to_scale_kernel<input_dtype, opus::i8_t, false><<<grid, block, 0, stream>>>(
-                    partials, reinterpret_cast<input_dtype*>(input.data_ptr()), cols);
-                aiter::reduce_per_tensor_scale<<<dim3(1), block, 0, stream>>>(
-                    reinterpret_cast<float*>(scale.data_ptr()), partials, grid.x);
+                // Float positive zero initializes the uint32 counter to zero bits.
+                aiter::initializeScale<<<dim3(1), dim3(64), 0, stream>>>(
+                    partials + static_cast<size_t>(rows), 1, 0.0f);
+                aiter::data_to_scale_kernel<input_dtype, opus::i8_t, false, true><<<grid, block, 0, stream>>>(
+                    reinterpret_cast<float*>(scale.data_ptr()),
+                    reinterpret_cast<input_dtype*>(input.data_ptr()), cols, partials);
             }
             else
             {
