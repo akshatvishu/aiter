@@ -1187,7 +1187,7 @@ void dynamic_per_tensor_quant(aiter_tensor_t& out,         // [..., d]
     dim3 grid(rows);
     // Keep the original row grid and write independent partial scales.
     // Conversion overwrites the partial scales after their final reduction.
-    const bool use_partials = out.is_contiguous() && rows >= 512 && cols % 16 == 0 &&
+    const bool use_partials = out.is_contiguous() && rows >= 512 && cols % 4 == 0 &&
                               reinterpret_cast<uintptr_t>(out.data_ptr()) % alignof(float) == 0;
     dim3 block(BlockSize);
     HipDeviceGuard device_guard(input.device_id);
